@@ -56,19 +56,35 @@ export default function LoginPage() {
     setError('')
     setIsLoading(true)
 
-    if (!loginEmail || !loginPassword) {
-      setError('Por favor, preencha todos os campos.')
-      setIsLoading(false)
-      return
-    }
+    try {
+      if (!loginEmail || !loginPassword) {
+        setError('Por favor, preencha todos os campos.')
+        setIsLoading(false)
+        return
+      }
 
-    const { error } = await signIn(loginEmail, loginPassword)
-    
-    if (error) {
-      setError(error.message || 'Erro ao fazer login. Verifique suas credenciais.')
+      const { error: signInError } = await signIn(loginEmail, loginPassword)
+      
+      if (signInError) {
+        console.error('Erro ao fazer login:', signInError)
+        
+        // Tratamento de erros mais específico
+        if (signInError.message.includes('Invalid login credentials')) {
+          setError('Email ou senha incorretos. Verifique suas credenciais.')
+        } else if (signInError.message.includes('Email not confirmed')) {
+          setError('Por favor, confirme seu email antes de fazer login.')
+        } else if (signInError.message.includes('JSON')) {
+          setError('Erro de conexão com o servidor. Verifique suas variáveis de ambiente.')
+        } else {
+          setError(signInError.message || 'Erro ao fazer login. Tente novamente.')
+        }
+      }
+    } catch (err: any) {
+      console.error('Erro inesperado ao fazer login:', err)
+      setError('Erro inesperado. Verifique sua conexão e tente novamente.')
+    } finally {
+      setIsLoading(false)
     }
-    
-    setIsLoading(false)
   }
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -76,34 +92,48 @@ export default function LoginPage() {
     setError('')
     setIsLoading(true)
 
-    if (!signupEmail || !signupPassword || !signupConfirmPassword) {
-      setError('Por favor, preencha todos os campos.')
-      setIsLoading(false)
-      return
-    }
+    try {
+      if (!signupEmail || !signupPassword || !signupConfirmPassword) {
+        setError('Por favor, preencha todos os campos.')
+        setIsLoading(false)
+        return
+      }
 
-    if (signupPassword !== signupConfirmPassword) {
-      setError('As senhas não coincidem.')
-      setIsLoading(false)
-      return
-    }
+      if (signupPassword !== signupConfirmPassword) {
+        setError('As senhas não coincidem.')
+        setIsLoading(false)
+        return
+      }
 
-    if (signupPassword.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres.')
-      setIsLoading(false)
-      return
-    }
+      if (signupPassword.length < 6) {
+        setError('A senha deve ter pelo menos 6 caracteres.')
+        setIsLoading(false)
+        return
+      }
 
-    const { error } = await signUp(signupEmail, signupPassword)
-    
-    if (error) {
-      setError(error.message || 'Erro ao criar conta.')
-    } else {
-      setError('')
-      alert('Conta criada com sucesso! Verifique seu email para confirmar.')
+      const { error: signUpError } = await signUp(signupEmail, signupPassword)
+      
+      if (signUpError) {
+        console.error('Erro ao criar conta:', signUpError)
+        
+        // Tratamento de erros mais específico
+        if (signUpError.message.includes('already registered')) {
+          setError('Este email já está cadastrado. Tente fazer login.')
+        } else if (signUpError.message.includes('JSON')) {
+          setError('Erro de conexão com o servidor. Verifique suas variáveis de ambiente.')
+        } else {
+          setError(signUpError.message || 'Erro ao criar conta.')
+        }
+      } else {
+        setError('')
+        alert('Conta criada com sucesso! Verifique seu email para confirmar.')
+      }
+    } catch (err: any) {
+      console.error('Erro inesperado ao criar conta:', err)
+      setError('Erro inesperado. Verifique sua conexão e tente novamente.')
+    } finally {
+      setIsLoading(false)
     }
-    
-    setIsLoading(false)
   }
 
   return (

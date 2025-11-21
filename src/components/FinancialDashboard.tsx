@@ -122,6 +122,16 @@ export default function FinancialDashboard() {
   // Estado para gerenciar contas recorrentes
   const [recurringBills, setRecurringBills] = useState(initialRecurringBills)
 
+  // Estados para o Modal de Nova Transação
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [newTransaction, setNewTransaction] = useState({
+    type: 'expense',
+    amount: '',
+    category: '',
+    description: '',
+    date: new Date().toISOString().split('T')[0]
+  })
+
   // Verificar contas próximas do vencimento e criar notificações
   useEffect(() => {
     const checkUpcomingBills = () => {
@@ -169,6 +179,44 @@ export default function FinancialDashboard() {
   const totalIncome = allTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
   const totalExpenses = allTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0)
   const balance = totalIncome - totalExpenses
+
+  // Função para adicionar nova transação
+  const handleAddTransaction = () => {
+    if (!newTransaction.amount || !newTransaction.category || !newTransaction.description) {
+      alert('Por favor, preencha todos os campos!')
+      return
+    }
+
+    const transaction = {
+      id: mockTransactions.length + 1,
+      type: newTransaction.type as 'income' | 'expense',
+      amount: parseFloat(newTransaction.amount),
+      category: newTransaction.category,
+      description: newTransaction.description,
+      date: newTransaction.date,
+      status: 'completed',
+      location: 'Manual',
+      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      method: 'Manual'
+    }
+
+    setMockTransactions([transaction, ...mockTransactions])
+    setIsModalOpen(false)
+    setNewTransaction({
+      type: 'expense',
+      amount: '',
+      category: '',
+      description: '',
+      date: new Date().toISOString().split('T')[0]
+    })
+  }
+
+  // Função para deletar transação
+  const handleDeleteTransaction = (id: number) => {
+    if (confirm('Tem certeza que deseja excluir esta transação?')) {
+      setMockTransactions(mockTransactions.filter(t => t.id !== id))
+    }
+  }
 
   const renderDashboard = () => (
     <div className="space-y-6">
@@ -272,6 +320,103 @@ export default function FinancialDashboard() {
         </Card>
       </div>
 
+      {/* Botão Nova Transação */}
+      <div className="flex justify-end">
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogTrigger asChild>
+            <Button 
+              size="lg"
+              style={{ backgroundColor: AXIS_GREEN }}
+              className="text-white hover:opacity-90"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Nova Transação
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Adicionar Nova Transação</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select 
+                  value={newTransaction.type} 
+                  onValueChange={(value) => setNewTransaction({...newTransaction, type: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="income">Receita</SelectItem>
+                    <SelectItem value="expense">Despesa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Valor (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={newTransaction.amount}
+                  onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Select 
+                  value={newTransaction.category} 
+                  onValueChange={(value) => setNewTransaction({...newTransaction, category: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {mockCategories
+                      .filter(cat => cat.type === newTransaction.type)
+                      .map(cat => (
+                        <SelectItem key={cat.id} value={cat.name}>
+                          {cat.icon} {cat.name}
+                        </SelectItem>
+                      ))
+                    }
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Input
+                  placeholder="Ex: Supermercado, Salário..."
+                  value={newTransaction.description}
+                  onChange={(e) => setNewTransaction({...newTransaction, description: e.target.value})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Data</Label>
+                <Input
+                  type="date"
+                  value={newTransaction.date}
+                  onChange={(e) => setNewTransaction({...newTransaction, date: e.target.value})}
+                />
+              </div>
+
+              <Button 
+                onClick={handleAddTransaction}
+                className="w-full text-white"
+                style={{ backgroundColor: AXIS_GREEN }}
+              >
+                Adicionar Transação
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-gray-200">
@@ -294,7 +439,227 @@ export default function FinancialDashboard() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        <Card className="border-gray-200">
+          <CardHeader>
+            <CardTitle className="text-black">Despesas por Categoria</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <RechartsPieChart>
+                <Pie
+                  data={mockCategories.filter(cat => cat.type === 'expense')}
+                  dataKey="spent"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label={(entry) => `${entry.name}: R$ ${entry.spent}`}
+                >
+                  {mockCategories.filter(cat => cat.type === 'expense').map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: any) => `R$ ${value.toLocaleString('pt-BR')}`} />
+              </RechartsPieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Tabela de Transações Recentes */}
+      <Card className="border-gray-200">
+        <CardHeader>
+          <CardTitle className="text-black">Transações Recentes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {mockTransactions.slice(0, 10).map(transaction => (
+              <div 
+                key={transaction.id}
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`p-2 rounded-full ${
+                    transaction.type === 'income' ? 'bg-green-100' : 'bg-red-100'
+                  }`}>
+                    {transaction.type === 'income' ? (
+                      <TrendingUp className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <TrendingDown className="h-5 w-5 text-red-600" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-black">{transaction.description}</p>
+                    <p className="text-sm text-gray-500">{transaction.category} • {transaction.date}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`font-bold ${
+                    transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {transaction.type === 'income' ? '+' : '-'} R$ {transaction.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteTransaction(transaction.id)}
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Orçamento por Categoria */}
+      <Card className="border-gray-200">
+        <CardHeader>
+          <CardTitle className="text-black">Orçamento por Categoria</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {mockCategories.filter(cat => cat.type === 'expense').map(category => {
+              const percentage = (category.spent / category.budget) * 100
+              const isOverBudget = percentage > 100
+              
+              return (
+                <div key={category.id} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{category.icon}</span>
+                      <span className="font-medium text-black">{category.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-bold ${isOverBudget ? 'text-red-600' : 'text-gray-700'}`}>
+                        R$ {category.spent.toFixed(2)} / R$ {category.budget.toFixed(2)}
+                      </p>
+                      <p className={`text-xs ${isOverBudget ? 'text-red-600' : 'text-gray-500'}`}>
+                        {percentage.toFixed(1)}% utilizado
+                      </p>
+                    </div>
+                  </div>
+                  <Progress 
+                    value={Math.min(percentage, 100)} 
+                    className="h-2"
+                    style={{
+                      backgroundColor: '#e5e7eb'
+                    }}
+                  />
+                  {isOverBudget && (
+                    <p className="text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Orçamento excedido em R$ {(category.spent - category.budget).toFixed(2)}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+
+  const renderRecurringBills = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-black">Contas Planejadas</h2>
+          <p className="text-gray-500">Gerencie suas contas recorrentes mensais</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {recurringBills.map(bill => {
+          const today = new Date().getDate()
+          const daysUntilDue = bill.dueDay - today
+          const isUpcoming = daysUntilDue >= 0 && daysUntilDue <= 3
+          const isOverdue = daysUntilDue < 0
+
+          return (
+            <Card 
+              key={bill.id} 
+              className={`border-2 ${
+                isOverdue ? 'border-red-300 bg-red-50' : 
+                isUpcoming ? 'border-yellow-300 bg-yellow-50' : 
+                'border-gray-200'
+              }`}
+            >
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{bill.icon}</span>
+                    <div>
+                      <CardTitle className="text-lg text-black">{bill.name}</CardTitle>
+                      <p className="text-sm text-gray-500">{bill.category}</p>
+                    </div>
+                  </div>
+                  {isOverdue && <Badge variant="destructive">Atrasado</Badge>}
+                  {isUpcoming && <Badge className="bg-yellow-500">Próximo</Badge>}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Valor:</span>
+                    <span className="text-xl font-bold text-black">
+                      R$ {bill.amount.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Vencimento:</span>
+                    <span className="font-medium text-black">
+                      Dia {bill.dueDay}
+                      {isUpcoming && ` (${daysUntilDue} dia${daysUntilDue !== 1 ? 's' : ''})`}
+                      {isOverdue && ` (${Math.abs(daysUntilDue)} dia${Math.abs(daysUntilDue) !== 1 ? 's' : ''} atraso)`}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-sm text-gray-600">Status:</span>
+                    <Badge variant={bill.active ? "default" : "secondary"}>
+                      {bill.active ? 'Ativa' : 'Inativa'}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* Resumo Total */}
+      <Card className="border-gray-200">
+        <CardHeader>
+          <CardTitle className="text-black">Resumo Mensal de Contas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Total de Contas</p>
+              <p className="text-2xl font-bold text-black">{recurringBills.length}</p>
+            </div>
+            <div className="p-4 bg-green-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Contas Ativas</p>
+              <p className="text-2xl font-bold text-black">
+                {recurringBills.filter(b => b.active).length}
+              </p>
+            </div>
+            <div className="p-4 bg-purple-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Valor Total Mensal</p>
+              <p className="text-2xl font-bold text-black">
+                R$ {recurringBills
+                  .filter(b => b.active)
+                  .reduce((sum, b) => sum + b.amount, 0)
+                  .toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 
@@ -341,6 +706,25 @@ export default function FinancialDashboard() {
             >
               <Home className="h-5 w-5" />
               <span className="font-medium">Início</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveSection('contas-planejadas')
+                setIsSidebarOpen(false)
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                activeSection === 'contas-planejadas'
+                  ? 'text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              style={activeSection === 'contas-planejadas' ? { backgroundColor: AXIS_GREEN } : {}}
+            >
+              <Repeat className="h-5 w-5" />
+              <span className="font-medium">Contas Planejadas</span>
+              {notifications.length > 0 && (
+                <Badge className="ml-auto bg-red-500">{notifications.length}</Badge>
+              )}
             </button>
           </div>
         </nav>
@@ -412,7 +796,8 @@ export default function FinancialDashboard() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {renderDashboard()}
+          {activeSection === 'inicio' && renderDashboard()}
+          {activeSection === 'contas-planejadas' && renderRecurringBills()}
         </div>
       </main>
     </div>
